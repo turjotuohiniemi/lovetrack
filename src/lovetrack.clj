@@ -1,42 +1,57 @@
 (ns lovetrack)
 
-(def pair_letters [\p \a \i \r \s])
-(def names_filename "/Users/turjo/clojutus/lovetrack/fast_track_generoitu_nimilista.txt")
+(def love-letters [\p \a \i \r \s])
 (def required_percentage 99)
 
 (defn loveadd [a b]
   (if (< (+ a b) 10)
     (+ a b)
-    (let [numval (fn [x] (- (int x) (int \0)))]
-      (loveadd (reduce (fn [a b] (+ a b)) (map numval (vec (str (+ a b))))) 0))))
+    (->> a
+         (+ b)
+         str
+         vec
+         (map #(- (int %) (int \0)))
+         (reduce #(+ %1 %2))
+         (loveadd 0))))
 
-(defn pairvector [namestr]
+(defn name->pairvector [namestr]
   (let [freqs (frequencies namestr)
         occurs_count (fn [letter]
                            (if (nil? (freqs letter))
                              0
                              (loveadd (freqs letter) 0)))]
-    (map occurs_count pair_letters)))
+    (map occurs_count love-letters)))
 
-(defn pairsum [pairvect]
-  (let [calc_sums (loop [acc []
-                         v pairvect]
+(defn pairvector->lovevalue [pairvect]
+  (let [calc_sums (loop [v pairvect
+                         acc []]
                     (if (second v)
-                      (recur (conj acc (loveadd (first v) (second v))) (rest v))
+                      (->> (first v)
+                           (loveadd (second v))
+                           (conj acc)
+                           (recur (rest v)))
                       acc))]
     (if (= (count pairvect) 2)
       (+ (* (first pairvect) 10) (last pairvect))
-      (pairsum calc_sums)
+      (pairvector->lovevalue calc_sums)
       )))
 
 (defn percentage [name1 name2]
-  (pairsum (pairvector (str name1 name2))))
+  (-> (str name1 name2)
+      name->pairvector
+      pairvector->lovevalue))
 
-(defn good_pairs [filename]
-  (let [pairs_for (fn [dev respool]
-                    (map (fn [match] (str dev " - " match)) (filter (fn [codev] (>= (percentage dev codev) required_percentage)) respool)))]
-    (loop [acc '()
-           developers (clojure.string/split-lines (.toLowerCase (slurp filename)))]
+(defn good-pairs [filename]
+  (let [pairs-for (fn [dev respool]
+                    (->> respool
+                         (filter #(= (percentage dev %) required_percentage))
+                         (map #(str dev " - " %))
+                         ))]
+    (loop [developers (clojure.string/split-lines (.toLowerCase (slurp filename)))
+           acc '()]
       (if (empty? developers)
         acc
-        (recur (concat acc (pairs_for (first developers) (rest developers))) (rest developers)))) ))
+        (->> (rest developers)
+             (pairs-for (first developers))
+             (concat acc)
+             (recur (rest developers)))))))
